@@ -1,4 +1,4 @@
-from .LiteroticaMemberPage import LiteroticaMemberPage
+from LiteroticaMemberPage import LiteroticaMemberPage
 import pytest
 import os
 import glob

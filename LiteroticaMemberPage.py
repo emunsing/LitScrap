@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from urllib import request
-from .LiteroticaStoryPage import LiteroticaStoryPage
+from LiteroticaStoryPage import LiteroticaStoryPage
+from django.utils.text import slugify
 import os
 import logging
 import csv
@@ -208,19 +209,21 @@ class LiteroticaMemberPage():
             return False
         
         with open(os.path.join(contentDirectory, f'member_{self.MemberID}.csv'),"w+") as file:
-            file.write('StoryLink,MemberName,MemberUID,FilePrefix,StoryTitle,StorySecondaryLine,StoryCategory\r\n')  # Write header
+            file.write('StoryLink,MemberName,MemberUID,Parent,FilePrefix,StoryTitle,StorySecondaryLine,StoryCategory,Rating\r\n')  # Write header
             writer = csv.writer(file)  # We use a CSV Writer to appropriately escape commas and quotes
 
             for storyEntry in self.IndividualStories:
-                story_info = [storyEntry.URL, self.MemberName, self.MemberID, storyEntry.FileName.replace('.html', ''), 
-                              storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category]
+                rating = storyEntry.Rating or ""  # Will not be populated if the story page hasn't been loaded
+                story_info = [storyEntry.URL, self.MemberName, self.MemberID, "", storyEntry.FileName.replace('.html', ''), 
+                              storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category, rating]
                 writer.writerow(story_info)
 
             for seriesTitle, seriesEntries in self.SeriesStories:
-                storyEntry = seriesEntries[0]
-                story_info = [storyEntry.URL, self.MemberName, self.MemberID, storyEntry.FileName.replace('.html', ''), 
-                              seriesTitle.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category]
-                writer.writerow(story_info)
+                for storyEntry in seriesEntries:
+                    rating = storyEntry.Rating or ""
+                    story_info = [storyEntry.URL, self.MemberName, self.MemberID, seriesTitle.strip(), storyEntry.FileName.replace('.html', ''),
+                                storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category, storyEntry.Rating]
+                    writer.writerow(story_info)
     
     def WritePlainTextToFile(self, contentDirectory, force_redownload=False):
         if not self.IsLoaded() or not self.IsParsed() or not self.IsValidMemberPage():
@@ -231,7 +234,7 @@ class LiteroticaMemberPage():
             storyEntry.DownloadAndWriteStory(contentDirectory, force_redownload=force_redownload)
 
         for seriesTitle, seriesEntries in self.SeriesStories:
-            series_slug = seriesTitle.split(":")[0].lower().strip().replace(" ","-")
+            series_slug = slugify(seriesTitle.split(":")[0])
             series_path = os.path.join(contentDirectory, series_slug)
             if not os.path.exists(series_path):
                 os.makedirs(series_path)
