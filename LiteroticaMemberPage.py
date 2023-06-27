@@ -1,7 +1,9 @@
 from bs4 import BeautifulSoup
-import urllib
-import LiteroticaStoryPage
-
+from urllib import request
+from .LiteroticaStoryPage import LiteroticaStoryPage
+import os
+import logging
+import csv
 
 
 class LiteroticaMemberPage():
@@ -45,6 +47,8 @@ class LiteroticaMemberPage():
     # Member page foot for saving to disk.
     __saveFooter = """</body>\r\n</html>\r\n"""
 
+    __savefile_format = "member_{memberID}.html"
+
     def __init__(self, memberID):
         self.__html = None
         self.__soup = None
@@ -55,6 +59,8 @@ class LiteroticaMemberPage():
 
         self.MemberPageURL = LiteroticaMemberPage.FormMemberPageURL(memberID)
         self.MemberID = memberID
+        self.MemberName = None
+        self.MemberCopyright = None
         self.SeriesStories = []
         self.IndividualStories = []
 
@@ -75,9 +81,9 @@ class LiteroticaMemberPage():
 
     def DownloadMemberPage(self):
         try:
-            urlStream = urllib.urlopen(self.MemberPageURL)
+            urlStream = request.urlopen(self.MemberPageURL)
             self.__html = urlStream.read()
-            self.__soup = BeautifulSoup(self.__html)
+            self.__soup = BeautifulSoup(self.__html, features="lxml")
         except:
             return False
 
@@ -89,11 +95,15 @@ class LiteroticaMemberPage():
         self.__isValidMemberPage = True
         
         try:
+            self.ParseMemberInfo()
             self.ParseAllStories()
         except:
             return False
 
         return self.IsParsed()
+
+    def ParseMemberInfo(self):
+        self.MemberName = self.__soup.find("a", class_="contactheader").text
 
     def ParseAllStories(self):
         try:
@@ -132,7 +142,7 @@ class LiteroticaMemberPage():
 
         # get the next rows on until we no longer have rows or
         # we find a row that is not a series story class
-        while rowSibling != None and rowSibling.name == "tr" and rowSibling.attrs["class"] == LiteroticaMemberPage.__storySeriesIndividualTitleClass["class"]:
+        while rowSibling != None and rowSibling.name == "tr" and LiteroticaMemberPage.__storySeriesIndividualTitleClass["class"] in rowSibling.attrs["class"]:
             thisSeriesStories += self.__ParseStoryResultForStoryLines([rowSibling])
             rowSibling = rowSibling.nextSibling
 
@@ -155,9 +165,10 @@ class LiteroticaMemberPage():
         return 
 
     def CreateMemberPage(self, contentDirectory):
+        # contentDirectory must be a valid directory
         try:
-            memberFileName = "member_"+str(self.MemberID)+ ".html"
-            memberFilePath = contentDirectory + "\\memberPages\\" + memberFileName
+            memberFileName = LiteroticaMemberPage.__savefile_format.format(memberID=self.MemberID)
+            memberFilePath = os.path.join(contentDirectory, memberFileName)
             file = open(memberFilePath,"w+")
         except:
             return None
@@ -191,28 +202,74 @@ class LiteroticaMemberPage():
             return False
 
         return True
+    
+    def WriteCSVToDisk(self, contentDirectory):
+        if not self.IsLoaded() or not self.IsParsed() or not self.IsValidMemberPage():
+            return False
+        
+        with open(os.path.join(contentDirectory, f'member_{self.MemberID}.csv'),"w+") as file:
+            file.write('StoryLink,MemberName,MemberUID,FilePrefix,StoryTitle,StorySecondaryLine,StoryCategory\r\n')  # Write header
+            writer = csv.writer(file)  # We use a CSV Writer to appropriately escape commas and quotes
+
+            for storyEntry in self.IndividualStories:
+                story_info = [storyEntry.URL, self.MemberName, self.MemberID, storyEntry.FileName.replace('.html', ''), 
+                              storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category]
+                writer.writerow(story_info)
+
+            for seriesTitle, seriesEntries in self.SeriesStories:
+                storyEntry = seriesEntries[0]
+                story_info = [storyEntry.URL, self.MemberName, self.MemberID, storyEntry.FileName.replace('.html', ''), 
+                              seriesTitle.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category]
+                writer.writerow(story_info)
+    
+    def WritePlainTextToFile(self, contentDirectory):
+        if not self.IsLoaded() or not self.IsParsed() or not self.IsValidMemberPage():
+            logging.warning('Member page not appropriately loaded!')
+            return False
+        
+        def DownloadAndWriteStory(story, dir):
+            if story.PlainText == None:
+                story.DownloadAllPagesNewFormat()
+            story.WritePlaintextToDisk(dir)
+
+        for storyEntry in self.IndividualStories:
+            DownloadAndWriteStory(storyEntry, contentDirectory)
+
+        for seriesTitle, seriesEntries in self.SeriesStories:
+            series_slug = seriesTitle.split(":")[0].lower().strip().replace(" ","-")
+            series_path = os.path.join(contentDirectory, series_slug)
+            if not os.path.exists(series_path):
+                os.makedirs(series_path)
+            
+            series_text = ''
+            for seriesIndividualStory in seriesEntries:
+                DownloadAndWriteStory(seriesIndividualStory, series_path)
+                series_text += seriesIndividualStory.PlainText
+            
+            with open(os.path.join(contentDirectory, series_slug + '.txt'), 'w') as file:
+                file.write(series_text)
+
+        return True
 
     def __WriteSeriesTitleLine(self, file, seriesTitle):
         entryLine = self.__saveSeriesTitleEntry
-        entryLine = entryLine.replace("{SeriesTitle}",seriesTitle)
-        file.write(entryLine.encode("utf-8"))
+        entryLine = entryLine.format(SeriesTitle=seriesTitle)
+        # file.write(entryLine.encode("utf-8"))
+        file.write(entryLine)
 
     def __WriteIndividualStoryLine(self, file, storyEntry):
         entryLine = self.__saveIndividualStoryEntry
-        entryLine = entryLine.replace("{StoryLink}",storyEntry.RelativePath())
-        entryLine = entryLine.replace("{StoryTitle}",storyEntry.Title)
-        entryLine = entryLine.replace("{StorySecondaryLine}",storyEntry.SecondaryLine)
-        entryLine = entryLine.replace("{StoryCategory}",storyEntry.Category)
-        file.write(entryLine.encode("utf-8"))
+        entryLine = entryLine.format(StoryLink=storyEntry.RelativePath(),
+                                     StoryTitle=storyEntry.Title,
+                                     StorySecondaryLine=storyEntry.SecondaryLine,
+                                     StoryCategory=storyEntry.Category)
+        # file.write(entryLine.encode("utf-8"))
+        file.write(entryLine)
         return
 
     def __WriteSeriesStoryLine(self, file,storyEntry):
-        entryLine = self.__saveSeriesStoryEntry
-        entryLine = entryLine.replace("{StoryLink}",storyEntry.RelativePath())
-        entryLine = entryLine.replace("{StoryTitle}",storyEntry.Title)
-        entryLine = entryLine.replace("{StorySecondaryLine}",storyEntry.SecondaryLine)
-        entryLine = entryLine.replace("{StoryCategory}",storyEntry.Category)
-        file.write(entryLine.encode("utf-8"))
+        # In the current code, this is the same as the individual story line
+        self.__WriteIndividualStoryLine(file, storyEntry)
         return
 
     @staticmethod
@@ -233,7 +290,7 @@ class LiteroticaMemberPage():
             if len(subElements) == 0:
                 continue
 
-            storyPage = LiteroticaStoryPage.LiteroticaStoryPage()
+            storyPage = LiteroticaStoryPage()
             storyPage.URL = subElements[0].find("a")["href"]
             if "showstory.php?id=" in storyPage.URL:
                 storyPage.FileName = storyPage.URL.split("showstory.php?id=")[1] + ".html"

@@ -1,5 +1,9 @@
 from bs4 import BeautifulSoup
-import urllib
+from urllib import request
+import requests as requestslib
+import os
+import logging
+
 
 class LiteroticaStoryPage():
     """Literotica Story Page"""
@@ -18,42 +22,84 @@ class LiteroticaStoryPage():
         self.Category = None
         self.Title = None
         self.SecondaryLine = None
-        self.Text = None
+        self.Text = None  # Concatenated HTML blocks of the story pages
+        self.PlainText = None  # Raw text, separated with newlines
         
-        self.__SavePath = None
+        self.SavePath = None
 
         self.__isSeries = False
         self.__isSingleStory = False
         self.__isDownloaded = False
         self.__isParsed = False
         self.__PageCount = 0
+
+    @staticmethod
+    def clean_plaintext(html_text):
+        paragraphs = BeautifulSoup(html_text, features="lxml").find_all('p')
+        paragraph_texts = [txt for p in paragraphs if (txt:=p.get_text().strip()) != '']
+        return '\n\n'.join(paragraph_texts)
     
     def DownloadAllPages(self):
-        urlStream = urllib.urlopen(self.URL+"?page=1")
+        urlStream = request.urlopen(self.URL+"?page=1")
         html = urlStream.read()
-        soup = BeautifulSoup(html)
+        soup = BeautifulSoup(html, features="lxml")
         try:
             pageblock = soup.findAll("span",attrs={"class" :"b-pager-caption-t r-d45"})
             self.__PageCount = int(pageblock[0].contents[1].replace(" Pages:",""))
         except:
+            # TODO: Make this more specific. This fails quietly on a valid page when the format changes.
             return False
 
         storyText = soup.find("div",attrs={"class": "b-story-body-x x-r15"}).prettify() + "\r\n"
         if self.__PageCount != 1:
-            for pageNum in xrange(2,self.__PageCount+1):
-                urlStream = urllib.urlopen(self.URL+"?page="+str(pageNum))
+            for pageNum in range(2,self.__PageCount+1):
+                urlStream = request.urlopen(self.URL+"?page="+str(pageNum))
                 html = urlStream.read()
                 soup = BeautifulSoup(html)
                 storyText += soup.find("div",attrs={"class": "b-story-body-x x-r15"}).prettify() +"\r\n"
-        self.Text = unicode(storyText,"utf-8")
-        
+        self.Text = storyText.encode("utf-8")
+        self.PlainText = self.clean_plaintext(self.Text)
+        return True
+    
+    def DownloadAllPagesNewFormat(self):
+        # Handles HTML format which is current as of 2023-06-23
+
+        urlstream = request.urlopen(self.URL)
+        html = urlstream.read()
+        soup = BeautifulSoup(html, features="lxml")
+
+        # Get number of pages
+        pageblock = soup.findAll("div",attrs={"class" :"panel clearfix l_bH"})
+        if pageblock:
+            pagenums = pageblock[0].findAll("a",attrs={"class" :"l_bJ"})
+            page_count = int(pagenums[-1].text)
+        else:
+            page_count = 1
+            
+        # Get first page story
+        storyText = soup.find("div", class_='aa_ht').prettify() + "\r\n"
+
+        for i in range(2, page_count+1):
+            logging.info(f"Getting page {i}")
+            urlstream = request.urlopen(self.URL + f'?page={i:d}')
+            html = urlstream.read()
+            soup = BeautifulSoup(html, features="lxml")
+            storyText += soup.find("div", class_='aa_ht').prettify() + "\r\n"
+
+        self.Text = storyText
+        self.PlainText = self.clean_plaintext(self.Text)
         return True
 
     
-    def WriteToDisk(self, contentDirectory):
-        try:
-            with self.CreateStoryPage(contentDirectory) as file:
+    def WritePlaintextToDisk(self, contentDirectory):
+        output_fname = os.path.join(contentDirectory, self.FileName.replace('.html', '.txt'))
+        with open(output_fname, 'w') as file:
+            file.write(self.PlainText)
 
+    def WriteToDisk(self, contentDirectory):
+        # This did not have a caller or a unit test, so I'm working with my best understanding of the intent
+        try:
+            with self.CreateStoryPage(contentDirectory, self.FileName) as file:
                 self.__WriteStoryPageHeader(file)
                 self.__WriteStoryPageMemberLine(file)
                 self.__WriteStoryPageText(file)
@@ -81,16 +127,16 @@ class LiteroticaStoryPage():
         file.write(storyPageHeader.encode("utf-8"))
         return
 
-    def CreateStoryPage(self, contentDirectory):
+    def CreateStoryPage(self, contentDirectory, fileName):
         try:
-            storyFilePath = contentDirectory + "\\storyPages\\" + self.FileName 
+            storyFilePath = os.path.join(contentDirectory, "storyPages", fileName)
             file = open(storyFilePath,"w+")
         except:
             return None
-
         return file
 
     def RelativePath(self):
+        # text Path for insertion into the summary page written to HTML
         return "../storyPages/" + self.FileName
 
     
