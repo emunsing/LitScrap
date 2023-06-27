@@ -222,18 +222,13 @@ class LiteroticaMemberPage():
                               seriesTitle.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category]
                 writer.writerow(story_info)
     
-    def WritePlainTextToFile(self, contentDirectory):
+    def WritePlainTextToFile(self, contentDirectory, force_redownload=False):
         if not self.IsLoaded() or not self.IsParsed() or not self.IsValidMemberPage():
             logging.warning('Member page not appropriately loaded!')
             return False
-        
-        def DownloadAndWriteStory(story, dir):
-            if story.PlainText == None:
-                story.DownloadAllPagesNewFormat()
-            story.WritePlaintextToDisk(dir)
 
         for storyEntry in self.IndividualStories:
-            DownloadAndWriteStory(storyEntry, contentDirectory)
+            storyEntry.DownloadAndWriteStory(contentDirectory, force_redownload=force_redownload)
 
         for seriesTitle, seriesEntries in self.SeriesStories:
             series_slug = seriesTitle.split(":")[0].lower().strip().replace(" ","-")
@@ -243,7 +238,7 @@ class LiteroticaMemberPage():
             
             series_text = ''
             for seriesIndividualStory in seriesEntries:
-                DownloadAndWriteStory(seriesIndividualStory, series_path)
+                seriesIndividualStory.DownloadAndWriteStory(series_path, force_redownload=force_redownload)
                 series_text += seriesIndividualStory.PlainText
             
             with open(os.path.join(contentDirectory, series_slug + '.txt'), 'w') as file:

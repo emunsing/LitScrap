@@ -90,11 +90,20 @@ class LiteroticaStoryPage():
         self.PlainText = self.clean_plaintext(self.Text)
         return True
 
-    
-    def WritePlaintextToDisk(self, contentDirectory):
+            
+    def DownloadAndWriteStory(self, contentDirectory, force_redownload=False):
+        # End conditions: plaintext file exists, and self.PlainText is populated with the text
         output_fname = os.path.join(contentDirectory, self.FileName.replace('.html', '.txt'))
-        with open(output_fname, 'w') as file:
-            file.write(self.PlainText)
+
+        if force_redownload or (self.PlainText is None and not os.path.exists(output_fname)):
+            self.DownloadAllPagesNewFormat()
+            with open(output_fname, 'w') as file:
+                file.write(self.PlainText)
+        elif self.PlainText is None and os.path.exists(output_fname):
+            self.PlainText = open(output_fname, 'r').read()
+        elif self.PlainText is not None and not os.path.exists(output_fname):
+            with open(output_fname, 'w') as file:
+                file.write(self.PlainText)
 
     def WriteToDisk(self, contentDirectory):
         # This did not have a caller or a unit test, so I'm working with my best understanding of the intent
