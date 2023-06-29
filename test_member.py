@@ -23,7 +23,7 @@ def test_author_write(author_id=AUTHOR_ID):
 
     # TODO: This modifies the system directory so should be avoided/rewritten
     save_dir = os.path.expanduser("~/Documents/Projects/2026_06_airotica/data")
-    member_dir = os.path.join(save_dir, f'{author.MemberName}_{author.MemberID}')
+    member_dir = os.path.join(save_dir, f'{author.MemberID}_{author.MemberName}')
     if not os.path.exists(member_dir):
         os.makedirs(member_dir)
 

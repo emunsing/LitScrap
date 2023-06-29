@@ -153,7 +153,7 @@ class LiteroticaMemberPage():
         seriesStoryTitleBlocks = self.__GetSeriesTitleBlocks()
         allSeriesStories = []
         for storiesSeriesBlock in seriesStoryTitleBlocks:
-            seriesTitle = storiesSeriesBlock.text
+            seriesTitle = storiesSeriesBlock.text.strip()
             
             thisSeriesStories = self.__ParseSeriesStoriesFromTitleBlocks(storiesSeriesBlock)
 
@@ -209,19 +209,18 @@ class LiteroticaMemberPage():
             return False
         
         with open(os.path.join(contentDirectory, f'member_{self.MemberID}.csv'),"w+") as file:
-            file.write('StoryLink,MemberName,MemberUID,Parent,FilePrefix,StoryTitle,StorySecondaryLine,StoryCategory,Rating\r\n')  # Write header
+            file.write('StoryLink,MemberName,MemberUID,SeriesTitle,Subdir,FilePrefix,StoryTitle,StorySecondaryLine,StoryCategory,Rating\r\n')  # Write header
             writer = csv.writer(file)  # We use a CSV Writer to appropriately escape commas and quotes
 
             for storyEntry in self.IndividualStories:
-                rating = storyEntry.Rating or ""  # Will not be populated if the story page hasn't been loaded
-                story_info = [storyEntry.URL, self.MemberName, self.MemberID, "", storyEntry.FileName.replace('.html', ''), 
-                              storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category, rating]
+                story_info = [storyEntry.URL, self.MemberName, self.MemberID, "", "", storyEntry.FileName.replace('.html', ''), 
+                              storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category, storyEntry.Rating]
                 writer.writerow(story_info)
 
             for seriesTitle, seriesEntries in self.SeriesStories:
+                clean_series_title = seriesTitle.split(':')[0].strip()
                 for storyEntry in seriesEntries:
-                    rating = storyEntry.Rating or ""
-                    story_info = [storyEntry.URL, self.MemberName, self.MemberID, seriesTitle.strip(), storyEntry.FileName.replace('.html', ''),
+                    story_info = [storyEntry.URL, self.MemberName, self.MemberID, clean_series_title, slugify(clean_series_title), storyEntry.FileName.replace('.html', ''),
                                 storyEntry.Title.strip(), storyEntry.SecondaryLine.strip(),storyEntry.Category, storyEntry.Rating]
                     writer.writerow(story_info)
     
@@ -297,9 +296,10 @@ class LiteroticaMemberPage():
             storyPage.MemberID = self.MemberID
             storyTitleLine = subElements[0].text
             if u"\xa0" in storyTitleLine:
-                storyTitleLine = storyTitleLine.split(u"\xa0")[0]
-                storyTitleLine = storyTitleLine.replace("//","")
-                storyTitleLine.strip()
+                storyTitleLine, storyRating = storyTitleLine.split(u"\xa0")
+                storyRating = float(storyRating.replace('(','').replace(')',''))
+                storyPage.Rating = storyRating
+                storyTitleLine = storyTitleLine.replace("//","").strip()
 
             storyPage.Title = storyTitleLine
             storyPage.Category = subElements[2].find("a").find("span").text

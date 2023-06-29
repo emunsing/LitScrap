@@ -20,7 +20,6 @@ class LiteroticaStoryPage():
         self.FileName = None
         self.URL = None
         self.Category = None
-        self.Title = None
         self.SecondaryLine = None
         self.Text = None  # Concatenated HTML blocks of the story pages
         self.PlainText = None  # Raw text, separated with newlines
@@ -77,7 +76,7 @@ class LiteroticaStoryPage():
         else:
             page_count = 1
             
-        self.Rating = soup.find("span", class_="aT_cl").text
+        # self.Rating = soup.find("span", class_="aT_cl").text
         # Get first page story
         storyText = soup.find("div", class_='aa_ht').prettify() + "\r\n"
 
