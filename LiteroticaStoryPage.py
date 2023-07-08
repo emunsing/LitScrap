@@ -34,8 +34,21 @@ class LiteroticaStoryPage():
         self.__PageCount = 0
 
     @staticmethod
-    def clean_plaintext(html_text):
-        paragraphs = BeautifulSoup(html_text, features="lxml").find_all('p')
+    def clean_plaintext(html_text):        
+        tags_to_replace = {
+                                'b': '**',
+                                'strong': '**',
+                                'em': '*',
+                                'i': '*'
+                            }
+        soup = BeautifulSoup(html_text, features="lxml")
+
+        # Replace tags with markdown equivalents
+        for tag, replacement in tags_to_replace.items():
+            for match in soup.find_all(tag):
+                match.replace_with(replacement + match.get_text() + replacement)
+
+        paragraphs = soup.find_all('p')
         paragraph_texts = [txt for p in paragraphs if (txt:=p.get_text().strip()) != '']
         return '\n\n'.join(paragraph_texts)
     
@@ -50,13 +63,14 @@ class LiteroticaStoryPage():
             # TODO: Make this more specific. This fails quietly on a valid page when the format changes.
             return False
 
-        storyText = soup.find("div",attrs={"class": "b-story-body-x x-r15"}).prettify() + "\r\n"
+        # Note: Avoid .prettify() as it inserts linebreaks around inline tags, which make future processing difficult. 
+        storyText = str(soup.find("div",attrs={"class": "b-story-body-x x-r15"})) + "\r\n"
         if self.__PageCount != 1:
             for pageNum in range(2,self.__PageCount+1):
                 urlStream = request.urlopen(self.URL+"?page="+str(pageNum))
                 html = urlStream.read()
                 soup = BeautifulSoup(html)
-                storyText += soup.find("div",attrs={"class": "b-story-body-x x-r15"}).prettify() +"\r\n"
+                storyText += str(soup.find("div",attrs={"class": "b-story-body-x x-r15"})) + "\r\n"
         self.Text = storyText.encode("utf-8")
         self.PlainText = self.clean_plaintext(self.Text)
         return True
@@ -78,17 +92,17 @@ class LiteroticaStoryPage():
             
         # self.Rating = soup.find("span", class_="aT_cl").text
         # Get first page story
-        storyText = soup.find("div", class_='aa_ht').prettify() + "\r\n"
+        storyText = str(soup.find("div", class_='aa_ht')) + "\r\n"
 
         for i in range(2, page_count+1):
             logging.info(f"Getting page {i}")
             urlstream = request.urlopen(self.URL + f'?page={i:d}')
             html = urlstream.read()
             soup = BeautifulSoup(html, features="lxml")
-            storyText += soup.find("div", class_='aa_ht').prettify() + "\r\n"
+            storyText += str(soup.find("div", class_='aa_ht')) + "\r\n"
 
         self.Text = storyText
-        self.PlainText = self.clean_plaintext(self.Text)
+        self.PlainText = self.clean_plaintext(storyText)
         return True
 
             
