@@ -4,6 +4,7 @@ import os
 import glob
 
 AUTHOR_ID = 1332946  # BuckyDuckman - 16 total stories, mix of series and individual
+# AUTHOR_ID = 1832  # Author has some how-to articles with "x.xx" rating
 
 def test_author_load(author_id=AUTHOR_ID):
     author = LiteroticaMemberPage(author_id)
@@ -20,6 +21,7 @@ def test_author_load(author_id=AUTHOR_ID):
 def test_author_write(author_id=AUTHOR_ID):
     author = LiteroticaMemberPage(author_id)
     author_load_success = author.DownloadMemberPage()
+    assert author_load_success, "Error loading author page"
 
     # TODO: This modifies the system directory so should be avoided/rewritten
     save_dir = os.path.expanduser("~/Documents/Projects/2026_06_airotica/data")

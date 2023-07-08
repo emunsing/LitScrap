@@ -98,7 +98,8 @@ class LiteroticaMemberPage():
         try:
             self.ParseMemberInfo()
             self.ParseAllStories()
-        except:
+        except Exception as e:
+            logging.warning("Error parsing member page: {0}".format(e))
             return False
 
         return self.IsParsed()
@@ -110,12 +111,14 @@ class LiteroticaMemberPage():
         try:
             self.ParseSingleStories()
             self.__singleStoriesIsParsed = True
+        except Exception as e:
+            logging.warning("Error parsing individual stories: {0}".format(e))
 
+        try:
             self.ParseSeriesStories()
             self.__seriesIsParsed = True
-
-        except:
-            return False
+        except Exception as e:
+            logging.warning("Error parsing series stories: {0}".format(e))
 
         return True
 
@@ -297,7 +300,7 @@ class LiteroticaMemberPage():
             storyTitleLine = subElements[0].text
             if u"\xa0" in storyTitleLine:
                 storyTitleLine, storyRating = storyTitleLine.split(u"\xa0")
-                storyRating = float(storyRating.replace('(','').replace(')',''))
+                storyRating = float(storyRating.replace('(','').replace(')','').replace('x.xx','0.00'))
                 storyPage.Rating = storyRating
                 storyTitleLine = storyTitleLine.replace("//","").strip()
 
