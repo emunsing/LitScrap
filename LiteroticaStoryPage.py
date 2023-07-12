@@ -1,9 +1,65 @@
 from bs4 import BeautifulSoup
+from bs4 import NavigableString
 from urllib import request
 import requests as requestslib
 import os
 import logging
 
+
+def convert_inline_tags_to_markdown(html_text):
+    # input: html_text which can be soupified
+    # output: html_text which can be soupified, but where the tags_to_replace have been replaced with Markdown equivalents
+
+    tags_to_replace = {
+                        'b': '**',
+                        'strong': '**',
+                        'em': '*',
+                        'i': '*'
+                        }
+    soup = BeautifulSoup(html_text, features="lxml")
+
+    # Replace tags with markdown equivalents
+    for tag, replacement in tags_to_replace.items():
+        for match in soup.find_all(tag):
+            if match.string is None:
+                match.replace_with("")
+                continue
+
+            next_sibling = match.next_sibling
+            prev_sibling = match.previous_sibling
+
+            # Punctuation at start of next sibling: Move to inside of tag
+            # Whitespace at end of inline tag: Move to next sibling
+            # Punctuation at beginning of inline tag: Move to previous sibling
+            # Whitespace at beginning of inline tag: Move to previous sibling
+
+            # If there is punctuation at the start of the next sibling string, move it inside the inline tag
+            if isinstance(next_sibling, NavigableString) and len(next_sibling) > 0 and next_sibling[0] in {',', '.', ';', ':', '!', '?'}:
+                match.string += next_sibling[0]
+                match.next_sibling.replace_with(next_sibling[1:])
+
+            # If there is trailing whitespace, move it to the next sibling if there is one:
+            rstrip_len = len(match.string.rstrip())
+            if len(match.string) > rstrip_len:
+                if isinstance(next_sibling, NavigableString) and len(next_sibling) > 0:
+                    match.next_sibling.replace_with(match.string[rstrip_len:] + match.next_sibling)
+                match.string = match.string[:rstrip_len]
+
+            # If there is a punctuation at the start of the inline tag, move it to the previous sibling
+            if isinstance(prev_sibling, NavigableString) and len(prev_sibling) > 0 and match.string[0] in {',', '.', ';', ':', '!', '?'}:
+                match.previous_sibling.replace_with(match.previous_sibling + match.string[0])
+                match.string = match.string[1:]
+
+            # If there is leading whitespace, move it to the previous sibling if there is one:
+            len_leading_whitespace = len(match.string) - len(match.string.lstrip())
+            if len_leading_whitespace > 0:
+                if isinstance(prev_sibling, NavigableString) and len(prev_sibling) > 0:
+                    match.previous_sibling.replace_with(match.previous_sibling + match.string[:len_leading_whitespace])
+                match.string = match.string[len_leading_whitespace:]
+
+            match.replace_with(replacement + match.get_text() + replacement)
+            
+    return str(soup)
 
 class LiteroticaStoryPage():
     """Literotica Story Page"""
@@ -34,19 +90,9 @@ class LiteroticaStoryPage():
         self.__PageCount = 0
 
     @staticmethod
-    def clean_plaintext(html_text):        
-        tags_to_replace = {
-                                'b': '**',
-                                'strong': '**',
-                                'em': '*',
-                                'i': '*'
-                            }
+    def clean_plaintext(html_text):   
+        html_text = convert_inline_tags_to_markdown(html_text)  # Clean italics and bold
         soup = BeautifulSoup(html_text, features="lxml")
-
-        # Replace tags with markdown equivalents
-        for tag, replacement in tags_to_replace.items():
-            for match in soup.find_all(tag):
-                match.replace_with(replacement + match.get_text() + replacement)
 
         paragraphs = soup.find_all('p')
         paragraph_texts = [txt for p in paragraphs if (txt:=p.get_text().strip()) != '']
@@ -107,18 +153,24 @@ class LiteroticaStoryPage():
 
             
     def DownloadAndWriteStory(self, contentDirectory, force_redownload=False):
-        # End conditions: plaintext file exists, and self.PlainText is populated with the text
-        output_fname = os.path.join(contentDirectory, self.FileName.replace('.html', '.txt'))
+        # End conditions: plaintext and html files exist, self.PlainText is populated with rawtext, self.html is populated with html
+        html_fname = os.path.join(contentDirectory, self.FileName)
+        plaintext_fname = os.path.join(contentDirectory, self.FileName.replace('.html', '.txt'))
 
-        if force_redownload or (self.PlainText is None and not os.path.exists(output_fname)):
+        if force_redownload or (self.PlainText is None and not os.path.exists(plaintext_fname)):
             self.DownloadAllPagesNewFormat()
-            with open(output_fname, 'w') as file:
+            with open(plaintext_fname, 'w') as file:
                 file.write(self.PlainText)
-        elif self.PlainText is None and os.path.exists(output_fname):
-            self.PlainText = open(output_fname, 'r').read()
-        elif self.PlainText is not None and not os.path.exists(output_fname):
-            with open(output_fname, 'w') as file:
+            with open(html_fname, 'w') as file:
+                file.write(self.Text)
+        elif self.PlainText is None and os.path.exists(plaintext_fname):
+            self.PlainText = open(plaintext_fname, 'r').read()
+            self.Text = open(html_fname, 'r').read()
+        elif self.PlainText is not None and not os.path.exists(plaintext_fname):
+            with open(plaintext_fname, 'w') as file:
                 file.write(self.PlainText)
+            with open(html_fname, 'w') as file:
+                file.write(self.Text)
 
     def WriteToDisk(self, contentDirectory):
         # This did not have a caller or a unit test, so I'm working with my best understanding of the intent
