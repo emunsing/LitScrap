@@ -23,7 +23,6 @@ def convert_inline_tags_to_markdown(html_text):
     # Replace tags with markdown equivalents
     for tag, replacement in tags_to_replace.items():
         for match in soup.find_all(tag):
-            print(match.string)
             if match.string is None:
                 match.replace_with("")
                 continue
