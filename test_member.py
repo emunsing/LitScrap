@@ -7,7 +7,7 @@ AUTHOR_ID = 1332946  # BuckyDuckman - 16 total stories, mix of series and indivi
 # AUTHOR_ID = 1832  # Author has some how-to articles with "x.xx" rating
 # AUTHOR_ID = 3361758 # DragonCobolt : Extremely long list of stories; lots of italics
 # AUTHOR_ID = 1364586 # RexSpaulding: 6 stories, poetry (should be ignored), use of italics in Ch5 and Band Camping
-
+# AUTHOR_ID = 906819 # Threw errors on markdown formatting; very long
 
 def test_author_load(author_id=AUTHOR_ID):
     author = LiteroticaMemberPage(author_id)

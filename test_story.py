@@ -5,6 +5,7 @@ import os
 import glob
 
 STORY_URL = "https://www.literotica.com/s/a-pale-court-in-beauty-and-decay"
+STORY_URL = "https://www.literotica.com/s/loving-husband-1"
 
 def test_story_load(story_url=STORY_URL):
     story = LiteroticaStoryPage()
@@ -51,6 +52,8 @@ MARKDOWN_CASES = [
          ("<p>Hello,<em></em> World.</p>", "Hello, World."), # Degenerate, empty tag
          ("<p>Hello,<em> </em>World.</p>", "Hello, World."), # Near-degenerate, only space in tag
          ("<p>Hello,<em>\n</em>World.</p>", "Hello,\nWorld."), # Near-degenerate, only newline in tag
+         ("<p><em>Hello,</em><em> </em></em><em>World.</em></p>", "*Hello,* *World.*"), # Near-degenerate, only newline in tag
+         ("<p>Hello, World<em>.</em></p>", "Hello, World."), # Near-degenerate, only newline in tag
          ("<p>Hello<em>, World. </em></p>", 'Hello, *World.*'), # If whitespace falls at end of full string, it should be trimmed
          ("<p>Hello<em>, World. </em>Fizz buzz.</p>", 'Hello, *World.* Fizz buzz.'),
          ("<p>Hello<em>, World.\n\n</em></p>", 'Hello, *World.*'),

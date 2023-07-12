@@ -3,6 +3,7 @@ from bs4 import NavigableString
 from urllib import request
 import requests as requestslib
 import os
+import sys
 import logging
 
 
@@ -16,13 +17,21 @@ def convert_inline_tags_to_markdown(html_text):
                         'em': '*',
                         'i': '*'
                         }
+    punctuation = {',', '.', ';', ':', '!', '?'}
     soup = BeautifulSoup(html_text, features="lxml")
 
     # Replace tags with markdown equivalents
     for tag, replacement in tags_to_replace.items():
         for match in soup.find_all(tag):
+            print(match.string)
             if match.string is None:
                 match.replace_with("")
+                continue
+            if len(match.string.strip()) == 0:
+                match.replace_with(match.string)
+                continue
+            if match.string in punctuation:
+                match.replace_with(match.string)
                 continue
 
             next_sibling = match.next_sibling
@@ -34,7 +43,7 @@ def convert_inline_tags_to_markdown(html_text):
             # Whitespace at beginning of inline tag: Move to previous sibling
 
             # If there is punctuation at the start of the next sibling string, move it inside the inline tag
-            if isinstance(next_sibling, NavigableString) and len(next_sibling) > 0 and next_sibling[0] in {',', '.', ';', ':', '!', '?'}:
+            if isinstance(next_sibling, NavigableString) and len(next_sibling) > 0 and next_sibling[0] in punctuation:
                 match.string += next_sibling[0]
                 match.next_sibling.replace_with(next_sibling[1:])
 
@@ -46,7 +55,7 @@ def convert_inline_tags_to_markdown(html_text):
                 match.string = match.string[:rstrip_len]
 
             # If there is a punctuation at the start of the inline tag, move it to the previous sibling
-            if isinstance(prev_sibling, NavigableString) and len(prev_sibling) > 0 and match.string[0] in {',', '.', ';', ':', '!', '?'}:
+            if isinstance(prev_sibling, NavigableString) and len(prev_sibling) > 0 and match.string[0] in punctuation:
                 match.previous_sibling.replace_with(match.previous_sibling + match.string[0])
                 match.string = match.string[1:]
 
